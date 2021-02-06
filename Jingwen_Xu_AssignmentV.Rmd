@@ -1,0 +1,55 @@
+---
+title: "Xu_Jingwen_AssignmentV"
+subtitle: "GitHub and the ticketmaster.com API"
+author: "submitted by Jingwen Xu (Student ID: 5631584)"
+date: "February 14 2021"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I discussed together with Martin Scheerer (ID: 5631373), Michael Lyubkin (ID: 4168485), Lana Kern (ID: 5395819) and Anton Höhl (ID: 5637078). I assure that my assignment conform to the rules and guidelines in the *Code of Conduct*.
+
+## General Set-up
+First of all, I clear the workspace and install the packages that be needed and load the packages.
+
+```{r set_up, message=FALSE}
+
+rm(list = ls())  # clear the workspace
+
+# check if the packages has been installed; if not, then install
+if (!require("tidyverse")) install.packages("tidyverse")
+if (!require("xml2")) install.packages("xml2")
+if (!require("httr")) install.packages("httr")
+
+# load packages
+library(tidyverse)
+library(xml2)
+library(httr)
+
+```
+## Exercise 1: 
+The hyperlink is  <https://github.com/NeverJW/AssignmentV-DSPM.git>
+
+## Exercise 2: Getting to know the API
+
+## Exercise 3: Interacting with the API - the basics
+
+## Exercise 4: Interacting with the API - advanced
+
+## Exercise 5: Visualizing the extracted data
+
+## Exercise 6: Event locations in other countries
+
+
+
+
+
+
+
