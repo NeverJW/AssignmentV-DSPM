@@ -27,11 +27,17 @@ rm(list = ls())  # clear the workspace
 if (!require("tidyverse")) install.packages("tidyverse")
 if (!require("xml2")) install.packages("xml2")
 if (!require("httr")) install.packages("httr")
+if (!require("jsonlite")) install.packages("jsonlite")
+if (!require("rlist")) install.packages("rlist")
+if (!require("ggplot2")) install.packages("ggplot2")
 
 # load packages
 library(tidyverse)
 library(xml2)
 library(httr)
+library(jsonlite)
+library(rlist)
+library(ggplot2)
 
 ```
 ## Exercise 1: 
@@ -40,13 +46,184 @@ The hyperlink is  <https://github.com/NeverJW/AssignmentV-DSPM.git>
 ## Exercise 2: Getting to know the API
 
 ## Exercise 3: Interacting with the API - the basics
+### Search for event venues in Germany
+``` {r Ex3_1, message=FALSE}
+
+source("API_key.R")
+res_venues <-
+  GET(
+    "https://app.ticketmaster.com/discovery/v2/venues?",
+    query = list(
+      apikey = API_key,
+      locale = "*",
+      countryCode   = "DE"
+    )
+  )
+names(res_venues)
+status_code(res_venues)
+content <- fromJSON(content(res_venues, as = "text"))
+
+```
+
+### Extract the 7 columns and 20 rows data frame
+```{r Ex3_2, message=FALSE}
+
+venue_data <- as.data.frame(content[["_embedded"]][["venues"]])
+venue_data <-
+  venue_data[c("name", "city", "postalCode", "address", "url", "location")]
+venue_data <-
+  venue_data %>% mutate(
+    city = city$name,
+    address = address$line1,
+    longitude = location$longitude,
+    latitude = location$latitude,
+    location = NULL
+  )
+
+glimpse(venue_data)
+
+```
 
 ## Exercise 4: Interacting with the API - advanced
+```{r ex4, message=FALSE}
+
+# total results
+n <- as.numeric(content[["page"]][["totalElements"]])
+
+# Number of complete pages:
+pages <- floor(n / 20) - 1 # because the page start from 0
+
+# Number of entries on the last incomplete page:
+remainder <- n - 20 * floor(n / 20)
+
+# create a empty dataframe
+# We initiate a dataframe in the correct dimensions to speed up our loop:
+venue_df <- tibble(
+  name  = character(n),
+  city = character(n),
+  postalCode = character(n),
+  address   = character(n),
+  url = character(n),
+  longitude = character(n),
+  latitude = character(n)
+)
+
+
+for (i in 0:23) {
+  res_venues <-
+    GET(
+      "https://app.ticketmaster.com/discovery/v2/venues?",
+      query = list(
+        apikey = API_key,
+        locale = "*",
+        size = "500",
+        countryCode   = "DE",
+        page   = i
+      )
+    )
+  
+  content <- fromJSON(content(res_venues, as = "text"))
+  # We gradually fill our dataframe page by page (lines 1-20 in the first  iteration, lines 21-40 in the second iteration, ...):
+  venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), c(1, 3, 5)] <-
+    as.data.frame(content[["_embedded"]][["venues"]][c("name", "postalCode", "url")])
+  venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 2] <-
+    as.data.frame(content[["_embedded"]][["venues"]][["city"]][["name"]])
+  venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 4] <-
+    content[["_embedded"]][["venues"]][["address"]][["line1"]]
+  
+  if (is.null(content[["_embedded"]][["venues"]][["location"]][["longitude"]]) == TRUE) {
+    venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 6] <- NA
+  }
+  else {
+    venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 6] <-
+      content[["_embedded"]][["venues"]][["location"]][["longitude"]]
+  }
+  if (is.null(content[["_embedded"]][["venues"]][["location"]][["latitude"]]) == TRUE) {
+    venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 7] <- NA
+  }
+  else {
+    venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 7] <-
+      content[["_embedded"]][["venues"]][["location"]][["latitude"]]
+  }
+  Sys.sleep(10)
+}
+
+# The last page is incomplete, hence we add it manually outside
+# the loop, as in this particular case, the loop would cause problems otherwise:
+i <- i + 1
+res_venues <-
+  GET(
+    "https://app.ticketmaster.com/discovery/v2/venues?",
+    query = list(
+      apikey = API_key,
+      locale = "*",
+      size = "500",
+      countryCode   = "DE",
+      page   = i
+    )
+  )
+
+content <- fromJSON(content(res_venues, as = "text"))
+# We gradually fill our dataframe page by page (lines 1-20 in the first  iteration, lines 21-40 in the second iteration, ...):
+venue_df[(500 * (i + 1) - 499):(n), c(1, 3, 5)] <-
+  as.data.frame(content[["_embedded"]][["venues"]][c("name", "postalCode", "url")])
+venue_df[(500 * (i + 1) - 499):(n), 2] <-
+  as.data.frame(content[["_embedded"]][["venues"]][["city"]][["name"]])
+venue_df[(500 * (i + 1) - 499):(n), 4] <-
+  content[["_embedded"]][["venues"]][["address"]][["line1"]]
+venue_df[(500 * (i + 1) - 499):(n), 6] <-
+  content[["_embedded"]][["venues"]][["location"]][["longitude"]]
+venue_df[(500 * (i + 1) - 499):(n), 7] <-
+  content[["_embedded"]][["venues"]][["location"]][["latitude"]]
+
+
+glimpse(venue_df)
+```
 
 ## Exercise 5: Visualizing the extracted data
+```{r ex_5}
+# set NA where the value of longitude and latitude outside the border range
+
+venue_df_map <- venue_df
+venue_df_map$longitude <- as.numeric(venue_df_map$longitude)
+venue_df_map$latitude <- as.numeric(venue_df_map$latitude)
+
+
+venue_df_map$longitude[venue_df_map$longitude < 5.866944] <- NA
+venue_df_map$longitude[venue_df_map$longitude > 15.043611] <- NA
+
+venue_df_map$latitude[venue_df_map$latitude < 47.271679] <- NA
+venue_df_map$latitude[venue_df_map$latitude > 55.0846] <- NA
+
+
+ggplot(venue_df_map, aes(x = as.numeric(longitude), y = as.numeric(latitude))) +
+  geom_polygon(
+    aes(x = long, y = lat, group = group),
+    data = map_data("world", region = "Germany"),
+    fill = "grey90",
+    color = "black"
+  ) + geom_point(color = "blue",
+                 na.rm = TRUE,
+                 alpha = 0.5) +
+  theme_void() + coord_quickmap() +
+  labs(title = "Event locations across Germany", caption = "Source: ticketmaster.com") +
+  theme(
+    title = element_text(size = 8, face = 'bold') +
+      coord_cartesian(
+        xlim = c(5.866944 - .2, 15.043611 + .2),
+        ylim = c(47.271679 - .2, 55.0846 + .2)
+      ),
+    plot.caption = element_text(face = "italic")
+  )
+
+
+```
 
 ## Exercise 6: Event locations in other countries
 
+```{r Ex_6}
+
+```
 
 
 
