@@ -10,7 +10,6 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -49,7 +48,10 @@ The hyperlink is  <https://github.com/NeverJW/AssignmentV-DSPM.git>
 ### Search for event venues in Germany
 ``` {r Ex3_1, message=FALSE}
 
+# source the API_key in another script, treat the API_key as secret
 source("API_key.R")
+
+# perform a first GET request to searches for event venues in Germany
 res_venues <-
   GET(
     "https://app.ticketmaster.com/discovery/v2/venues?",
@@ -59,18 +61,24 @@ res_venues <-
       countryCode   = "DE"
     )
   )
-names(res_venues)
-status_code(res_venues)
+
+status_code(res_venues) # 200, a successful request
+
+# extract the content from the response object
 content <- fromJSON(content(res_venues, as = "text"))
 
 ```
+According to the content from the response object, we have three main parts: `_embedded`, `_links` and `page`. In the `_embedded`, all features of venues are stored. It contains 20 rows and 19 columns (some columns contain more than one variable). In the `_links`, we can see the urls of different results. In the `page`, we can see the total elements and total pages, the number of current page and the size of current page. In this content, the total elements are 12236 and total pages are 612. We are now in the 0 page and this page has 20 elements.
 
 ### Extract the 7 columns and 20 rows data frame
 ```{r Ex3_2, message=FALSE}
 
+# extract the 20 rows data frame
 venue_data <- as.data.frame(content[["_embedded"]][["venues"]])
 venue_data <-
   venue_data[c("name", "city", "postalCode", "address", "url", "location")]
+
+# extract the 7 columns and 20 rows data frame
 venue_data <-
   venue_data %>% mutate(
     city = city$name,
@@ -80,6 +88,7 @@ venue_data <-
     location = NULL
   )
 
+# see the data frame whether it is same as in the assignment samples
 glimpse(venue_data)
 
 ```
@@ -90,11 +99,11 @@ glimpse(venue_data)
 # total results
 n <- as.numeric(content[["page"]][["totalElements"]])
 
-# Number of complete pages:
-pages <- floor(n / 20) - 1 # because the page start from 0
+# Number of complete pages, I want to extract 500 size per request
+pages <- floor(n / 500) - 1 # because the page start from 0
 
 # Number of entries on the last incomplete page:
-remainder <- n - 20 * floor(n / 20)
+remainder <- n - 500 * floor(n / 500)
 
 # create a empty dataframe
 # We initiate a dataframe in the correct dimensions to speed up our loop:
@@ -108,8 +117,8 @@ venue_df <- tibble(
   latitude = character(n)
 )
 
-
-for (i in 0:23) {
+# write a loop that iterates throgh the results pages and perform a GET request for all venues in Germany
+for (i in 0:pages) {
   res_venues <-
     GET(
       "https://app.ticketmaster.com/discovery/v2/venues?",
@@ -122,35 +131,43 @@ for (i in 0:23) {
       )
     )
   
+  
+  # extract the content as before
   content <- fromJSON(content(res_venues, as = "text"))
-  # We gradually fill our dataframe page by page (lines 1-20 in the first  iteration, lines 21-40 in the second iteration, ...):
+  
+  # we gradually fill our data frame page by page (lines 1-500 in the first iteration, lines 501-1000 in the second iteration and so on)
   venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), c(1, 3, 5)] <-
     as.data.frame(content[["_embedded"]][["venues"]][c("name", "postalCode", "url")])
+  
   venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 2] <-
     as.data.frame(content[["_embedded"]][["venues"]][["city"]][["name"]])
+  
   venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 4] <-
     content[["_embedded"]][["venues"]][["address"]][["line1"]]
   
+  # there are NA values in the longitude and latitude, the longitude and latitude from lists without location will be set to NA in our data frame
   if (is.null(content[["_embedded"]][["venues"]][["location"]][["longitude"]]) == TRUE) {
     venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 6] <- NA
-  }
-  else {
+  } else {
     venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 6] <-
       content[["_embedded"]][["venues"]][["location"]][["longitude"]]
   }
+  
   if (is.null(content[["_embedded"]][["venues"]][["location"]][["latitude"]]) == TRUE) {
     venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 7] <- NA
-  }
-  else {
+  } else {
     venue_df[(500 * (i + 1) - 499):(500 * (i + 1)), 7] <-
       content[["_embedded"]][["venues"]][["location"]][["latitude"]]
   }
-  Sys.sleep(10)
+  
+  # ensure we will not vialate the rate limit (5 request per second) in this API
+  Sys.sleep(0.2)
 }
 
-# The last page is incomplete, hence we add it manually outside
-# the loop, as in this particular case, the loop would cause problems otherwise:
+# the last page is incomplete, hence we add it manually outside the loop, as in this particular case, the loop would cause problems otherwise:
 i <- i + 1
+
+# get the elements of last page
 res_venues <-
   GET(
     "https://app.ticketmaster.com/discovery/v2/venues?",
@@ -164,30 +181,44 @@ res_venues <-
   )
 
 content <- fromJSON(content(res_venues, as = "text"))
-# We gradually fill our dataframe page by page (lines 1-20 in the first  iteration, lines 21-40 in the second iteration, ...):
+
+
+# same iteration as before
 venue_df[(500 * (i + 1) - 499):(n), c(1, 3, 5)] <-
   as.data.frame(content[["_embedded"]][["venues"]][c("name", "postalCode", "url")])
 venue_df[(500 * (i + 1) - 499):(n), 2] <-
   as.data.frame(content[["_embedded"]][["venues"]][["city"]][["name"]])
 venue_df[(500 * (i + 1) - 499):(n), 4] <-
   content[["_embedded"]][["venues"]][["address"]][["line1"]]
-venue_df[(500 * (i + 1) - 499):(n), 6] <-
-  content[["_embedded"]][["venues"]][["location"]][["longitude"]]
-venue_df[(500 * (i + 1) - 499):(n), 7] <-
-  content[["_embedded"]][["venues"]][["location"]][["latitude"]]
 
+# there are NA values in the longitude and latitude, the longitude and latitude from lists without location will be set to NA in our data frame
+if (is.null(content[["_embedded"]][["venues"]][["location"]][["longitude"]]) == TRUE) {
+  venue_df[(500 * (i + 1) - 499):(n), 6] <- NA
+} else {
+  venue_df[(500 * (i + 1) - 499):(n), 6] <-
+    content[["_embedded"]][["venues"]][["location"]][["longitude"]]
+}
 
+if (is.null(content[["_embedded"]][["venues"]][["location"]][["latitude"]]) == TRUE) {
+  venue_df[(500 * (i + 1) - 499):(n), 7] <- NA
+} else {
+  venue_df[(500 * (i + 1) - 499):(n), 7] <-
+    content[["_embedded"]][["venues"]][["location"]][["latitude"]]
+}
+
+# see the whole data frame
 glimpse(venue_df)
+
 ```
 
 ## Exercise 5: Visualizing the extracted data
 ```{r ex_5}
-# set NA where the value of longitude and latitude outside the border range
 
+# set NA where the value of longitude and latitude outside the border range
 venue_df_map <- venue_df
+
 venue_df_map$longitude <- as.numeric(venue_df_map$longitude)
 venue_df_map$latitude <- as.numeric(venue_df_map$latitude)
-
 
 venue_df_map$longitude[venue_df_map$longitude < 5.866944] <- NA
 venue_df_map$longitude[venue_df_map$longitude > 15.043611] <- NA
@@ -195,7 +226,7 @@ venue_df_map$longitude[venue_df_map$longitude > 15.043611] <- NA
 venue_df_map$latitude[venue_df_map$latitude < 47.271679] <- NA
 venue_df_map$latitude[venue_df_map$latitude > 55.0846] <- NA
 
-
+# plot the map with points which indicate the locations of event venues across Germany
 ggplot(venue_df_map, aes(x = as.numeric(longitude), y = as.numeric(latitude))) +
   geom_polygon(
     aes(x = long, y = lat, group = group),
@@ -220,13 +251,208 @@ ggplot(venue_df_map, aes(x = as.numeric(longitude), y = as.numeric(latitude))) +
 ```
 
 ## Exercise 6: Event locations in other countries
+I will repeat exercise 2-5 for another European country - Luxembourg
+After getting to know the API, I want to get the first 20 rows for Luxembourg.
 
-```{r Ex_6}
+``` {r Ex6_1, message=FALSE}
+
+# source the API_key in another script, treat the API_key as secret
+source("API_key.R")
+
+# GET request for Luxembourg
+res_venues_LU <-
+  GET(
+    "https://app.ticketmaster.com/discovery/v2/venues?",
+    query = list(
+      apikey = API_key,
+      locale = "*",
+      countryCode   = "LU"
+    )
+  )
+
+status_code(res_venues_LU) # 200 successful request
+
+# Extract the content 
+content_LU <- fromJSON(content(res_venues_LU, as = "text"))
+
+```
+According to the content_LU from the response object, we have three main parts as before: `_embedded`, `_links` and `page`. In the `_embedded`, all features of venues are stored. It contains 20 rows and 15 columns (some columns contain more than one variable). In the `_links`, we can see the urls of different results. In the `page`, we can see the total elements and total pages, the number of current page and the size of current page. In this content, the total elements are 95 and total pages are 5. We are now in the 0 page and this page has 20 elements.
+
+```{r Ex6_2, message=FALSE}
+
+# then I extract the 7 columns and 20 rows for Luxembourg as before.
+venue_data_LU <- as.data.frame(content[["_embedded"]][["venues"]])
+
+venue_data_LU <-
+  venue_data_LU[c("name", "city", "postalCode", "address", "url", "location")]
+
+venue_data_LU <-
+  venue_data_LU %>% mutate(
+    city = city$name,
+    address = address$line1,
+    longitude = location$longitude,
+    latitude = location$latitude,
+    location = NULL
+  )
+
+# see the data
+glimpse(venue_data_LU)
 
 ```
 
+Because the total elements are 95 and we have 5 pages, I do the iteration through the results pages and perform a GET request for all venues in Luxembourg.
+```{r ex6_3, message=FALSE}
+
+# total results
+n_LU <- as.numeric(content_LU[["page"]][["totalElements"]])
+
+# Number of complete pages:
+pages_LU <- floor(n_LU / 20) - 1 # because the page start from 0
+
+# Number of entries on the last incomplete page:
+remainder_LU <- n_LU - 20 * floor(n_LU / 20)
+
+# create a empty data frame
+# We initiate a data frame in the correct dimensions to speed up our loop:
+venue_df_LU <- tibble(
+  name  = character(n_LU),
+  city = character(n_LU),
+  postalCode = character(n_LU),
+  address   = character(n_LU),
+  url = character(n_LU),
+  longitude = character(n_LU),
+  latitude = character(n_LU)
+)
+
+# write a loop to get requests for all venues in Luxembourg
+for (i in 0:pages_LU) {
+  res_venues_LU <-
+    GET(
+      "https://app.ticketmaster.com/discovery/v2/venues?",
+      query = list(
+        apikey = API_key,
+        locale = "*",
+        countryCode   = "LU",
+        page   = i
+      )
+    )
+  
+  content_LU <- fromJSON(content(res_venues_LU, as = "text"))
+
+  # we gradually fill our data frame page by page (lines 1-20 in the first iteration, lines 21-40 in the second iteration and so on):
+  venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), c(1, 3, 5)] <-
+    as.data.frame(content_LU[["_embedded"]][["venues"]][c("name", "postalCode", "url")])
+  
+  venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), 2] <-
+    as.data.frame(content_LU[["_embedded"]][["venues"]][["city"]][["name"]])
+  
+  venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), 4] <-
+    content_LU[["_embedded"]][["venues"]][["address"]][["line1"]]
+  
+  # deal with NA values, the longitude and latitude from lists without location will be set to NA in our data frame
+  if (is.null(content_LU[["_embedded"]][["venues"]][["location"]][["longitude"]]) == TRUE) {
+    venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), 6] <- NA
+  }
+   else {
+    venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), 6] <-
+      content_LU[["_embedded"]][["venues"]][["location"]][["longitude"]]
+   }
+  
+  if (is.null(content_LU[["_embedded"]][["venues"]][["location"]][["latitude"]]) == TRUE) {
+    venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), 7] <- NA
+  }
+   else {
+    venue_df_LU[(20 * (i + 1) - 19):(20 * (i + 1)), 7] <-
+      content_LU[["_embedded"]][["venues"]][["location"]][["latitude"]]
+   }
+  
+  # ensure we will not vialate the rate limit (5 request per second) in this API
+  Sys.sleep(0.2)
+}
+
+# The last page is incomplete, hence we add it manually outside the loop, as in this particular case, the loop would cause problems otherwise:
+i <- i + 1
+
+# get request for elements for last page
+res_venues_LU <-
+  GET(
+    "https://app.ticketmaster.com/discovery/v2/venues?",
+    query = list(
+      apikey = API_key,
+      locale = "*",
+      countryCode   = "LU",
+      page   = i
+    )
+  )
+
+content_LU <- fromJSON(content(res_venues_LU, as = "text"))
+
+# fill the data frame
+venue_df_LU[(20 * (i + 1) - 19):(n_LU), c(1, 3, 5)] <-
+  as.data.frame(content_LU[["_embedded"]][["venues"]][c("name", "postalCode", "url")])
+
+venue_df_LU[(20 * (i + 1) - 19):(n_LU), 2] <-
+  as.data.frame(content_LU[["_embedded"]][["venues"]][["city"]][["name"]])
+
+venue_df_LU[(20 * (i + 1) - 19):(n_LU), 4] <-
+  content_LU[["_embedded"]][["venues"]][["address"]][["line1"]]
+
+# deal with NA values, the longitude and latitude from lists without location will be set to NA in our data frame
+ if (is.null(content_LU[["_embedded"]][["venues"]][["location"]][["longitude"]]) == TRUE) {
+  venue_df_LU[(20 * (i + 1) - 19):(n_LU), 6] <- NA
+}else {
+  venue_df_LU[(20 * (i + 1) - 19):(n_LU), 6] <-
+    content_LU[["_embedded"]][["venues"]][["location"]][["longitude"]]
+}
+ 
+ if (is.null(content_LU[["_embedded"]][["venues"]][["location"]][["latitude"]]) == TRUE) {
+  venue_df_LU[(20 * (i + 1) - 19):(n_LU), 7] <- NA
+}else{
+  venue_df_LU[(20 * (i + 1) - 19):(n_LU), 7] <-
+    content_LU[["_embedded"]][["venues"]][["location"]][["latitude"]]
+}
+
+# see the data frame
+glimpse(venue_df_LU)
+```
+```{r ex6_4}
+
+# set NA where the value of longitude and latitude outside the border range
+# for Luxembourg the range is (5.733333, 6.533333) for longitude and (49.447778, 50.182944) for latitude
+
+venue_df_map_LU <- venue_df_LU
+
+venue_df_map_LU$longitude <- as.numeric(venue_df_map_LU$longitude)
+venue_df_map_LU$latitude <- as.numeric(venue_df_map_LU$latitude)
+
+venue_df_map_LU$longitude[venue_df_map_LU$longitude < 5.733333] <- NA
+venue_df_map_LU$longitude[venue_df_map_LU$longitude > 6.533333] <- NA
+
+venue_df_map_LU$latitude[venue_df_map_LU$latitude < 49.447778] <- NA
+venue_df_map_LU$latitude[venue_df_map_LU$latitude > 50.182944] <- NA
+
+# plot the map with points indicating the venues location across Luxembourg
+ggplot(venue_df_map_LU, aes(x = as.numeric(longitude), y = as.numeric(latitude))) +
+  geom_polygon(
+    aes(x = long, y = lat, group = group),
+    data = map_data("world", region = "Luxembourg"),
+    fill = "grey90",
+    color = "black"
+  ) + geom_point(color = "blue",
+                 na.rm = TRUE,
+                 alpha = 0.5) +
+  theme_void() + coord_quickmap() +
+  labs(title = "Event locations across Luxembourg", caption = "Source: ticketmaster.com") +
+  theme(
+    title = element_text(size = 8, face = 'bold') +
+      coord_cartesian(
+        xlim = c(5.733333 - .2, 6.533333 + .2),
+        ylim = c(49.447778 - .2, 50.182944 + .2)
+      ),
+    plot.caption = element_text(face = "italic")
+  )
 
 
-
+```
 
 
