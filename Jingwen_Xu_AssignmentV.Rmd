@@ -39,7 +39,7 @@ library(rlist)
 library(ggplot2)
 
 ```
-## Exercise 1: 
+## Exercise 1: Setting up a new GitHub repository
 The hyperlink is  <https://github.com/NeverJW/AssignmentV-DSPM.git>
 
 ## Exercise 2: Getting to know the API
