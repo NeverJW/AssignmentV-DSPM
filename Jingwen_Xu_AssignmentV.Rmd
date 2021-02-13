@@ -2,7 +2,7 @@
 title: "Xu_Jingwen_AssignmentV"
 subtitle: "GitHub and the ticketmaster.com API"
 author: "submitted by Jingwen Xu (Student ID: 5631584)"
-date: "February 14 2021"
+date: "February 13 2021"
 output: 
   html_document:
     toc: TRUE
@@ -13,7 +13,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-I discussed together with Martin Scheerer (ID: 5631373), Michael Lyubkin (ID: 4168485), Lana Kern (ID: 5395819) and Anton Höhl (ID: 5637078). I assure that my assignment conform to the rules and guidelines in the *Code of Conduct*.
+I discussed together with Martin Scheerer (ID: 5631373), Michael Lyubkin (ID: 4168485), Lana Kern (ID: 5395819), Anton Höhl (ID: 5637078) and Simon Metzger (ID: 5635087). I assure that my assignment conform to the rules and guidelines in the *Code of Conduct*.
 
 ## General Set-up
 First of all, I clear the workspace and install the packages that be needed and load the packages.
@@ -43,6 +43,7 @@ library(ggplot2)
 The hyperlink is  <https://github.com/NeverJW/AssignmentV-DSPM.git>
 
 ## Exercise 2: Getting to know the API
+I visit the documentation website for the API provided by ticketmaster.com and familize myself with the features and functionalities of the Ticketmaster Discovery API. I have a particular look the rate limits. I use the API Explorer and will treat the key as secret.
 
 ## Exercise 3: Interacting with the API - the basics
 ### Search for event venues in Germany
@@ -68,7 +69,7 @@ status_code(res_venues) # 200, a successful request
 content <- fromJSON(content(res_venues, as = "text"))
 
 ```
-According to the content from the response object, we have three main parts: `_embedded`, `_links` and `page`. In the `_embedded`, all features of venues are stored. It contains 20 rows and 19 columns (some columns contain more than one variable). In the `_links`, we can see the urls of different results. In the `page`, we can see the total elements and total pages, the number of current page and the size of current page. In this content, the total elements are 12236 and total pages are 612. We are now in the 0 page and this page has 20 elements.
+According to the content from the response object, we have three main parts: `_embedded`, `_links` and `page`. In the `_embedded`, all features of venues are stored. It contains 20 rows and 19 columns (some columns contain more than one variable). In the `_links`, we can see the urls of different results. In the `page`, we can see the total elements and total pages, the number of current page and the size of current page. In this content, the total elements are 12238 and total pages are 612 if we have size=20. We are now in the 0 page and this page has 20 elements.
 
 ### Extract the 7 columns and 20 rows data frame
 ```{r Ex3_2, message=FALSE}
